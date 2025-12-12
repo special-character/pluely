@@ -229,6 +229,10 @@ export function useSystemAudio() {
             if (!capturing) return;
 
             const base64Audio = event.payload as string;
+            const savedPath = await invoke<string>("save_wav_base64_to_file", {
+              wavBase64: base64Audio,
+            });
+            console.log("Saved audio to:", savedPath);
             // Convert to blob
             const binaryString = atob(base64Audio);
             const bytes = new Uint8Array(binaryString.length);

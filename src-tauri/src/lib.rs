@@ -12,6 +12,7 @@ use tokio::task::JoinHandle;
 mod speaker;
 use capture::CaptureState;
 use speaker::VadConfig;
+mod audio_files;
 
 #[cfg(target_os = "macos")]
 #[allow(deprecated)]
@@ -112,6 +113,7 @@ pub fn run() {
             speaker::update_vad_config,
             speaker::get_capture_status,
             speaker::get_audio_sample_rate,
+            audio_files::save_wav_base64_to_file,
         ])
         .setup(|app| {
             // Setup main window positioning
