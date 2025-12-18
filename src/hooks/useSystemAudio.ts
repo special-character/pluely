@@ -44,7 +44,7 @@ const DEFAULT_VAD_CONFIG: VadConfig = {
   min_speech_chunks: 7, // ~0.16s - captures short answers
   pre_speech_chunks: 12, // ~0.27s - enough to catch word start
   noise_gate_threshold: 0.003, // Stronger noise filtering
-  max_recording_duration_secs: 180, // 3 minutes default
+  max_recording_duration_secs: 3600, // 1 hour default
 };
 
 // Chat message interface (reusing from useCompletion)
@@ -136,7 +136,21 @@ export function useSystemAudio() {
     if (savedVadConfig) {
       try {
         const parsed = JSON.parse(savedVadConfig);
-        setVadConfig(parsed);
+        // Merge with defaults to ensure new default values are applied
+        // This migrates old configs (e.g., 180 seconds -> 3600 seconds)
+        const mergedConfig: VadConfig = {
+          ...DEFAULT_VAD_CONFIG,
+          ...parsed,
+          // If max_recording_duration_secs is the old default (180), update to new default (3600)
+          max_recording_duration_secs:
+            parsed.max_recording_duration_secs === 180
+              ? DEFAULT_VAD_CONFIG.max_recording_duration_secs
+              : parsed.max_recording_duration_secs ??
+                DEFAULT_VAD_CONFIG.max_recording_duration_secs,
+        };
+        setVadConfig(mergedConfig);
+        // Save the migrated config back to localStorage
+        safeLocalStorage.setItem("vad_config", JSON.stringify(mergedConfig));
       } catch (error) {
         console.error("Failed to load VAD config:", error);
       }
