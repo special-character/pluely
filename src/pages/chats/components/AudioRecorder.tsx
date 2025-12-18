@@ -136,6 +136,19 @@ export const AudioRecorder = ({
         audio: audioBlob,
       });
 
+      // Save transcript to file
+      try {
+        const savedPath = await invoke<string>("save_text_to_file", {
+          text: text,
+          prefix: "transcript_",
+          extension: "txt",
+        });
+        console.log("Saved transcript to:", savedPath);
+      } catch (saveError) {
+        console.error("Failed to save transcript:", saveError);
+        // Continue even if save fails
+      }
+
       onTranscriptionComplete(text);
     } catch (error) {
       console.error("Transcription failed:", error);

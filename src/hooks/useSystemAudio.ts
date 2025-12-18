@@ -280,6 +280,19 @@ export function useSystemAudio() {
                 timeoutPromise,
               ]);
 
+              // Save transcript to file
+              try {
+                const savedPath = await invoke<string>("save_text_to_file", {
+                  text: transcription,
+                  prefix: "transcript_",
+                  extension: "txt",
+                });
+                console.log("Saved transcript to:", savedPath);
+              } catch (saveError) {
+                console.error("Failed to save transcript:", saveError);
+                // Continue even if save fails
+              }
+
               if (transcription.trim()) {
                 setLastTranscription(transcription);
                 setError("");

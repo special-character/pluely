@@ -114,6 +114,7 @@ pub fn run() {
             speaker::get_capture_status,
             speaker::get_audio_sample_rate,
             audio_files::save_wav_base64_to_file,
+            audio_files::save_text_to_file,
         ])
         .setup(|app| {
             // Setup main window positioning
