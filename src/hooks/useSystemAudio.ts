@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useApp } from "@/contexts";
 import { fetchSTT, fetchAIResponse } from "@/lib/functions";
+import { blobToBase64 } from "@/lib/functions/common.function";
 import {
   DEFAULT_QUICK_ACTIONS,
   DEFAULT_SYSTEM_PROMPT,
@@ -87,6 +88,8 @@ export function useSystemAudio() {
     useState<boolean>(false);
   const [stream, setStream] = useState<MediaStream | null>(null); // for audio visualizer
   const streamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const micAudioChunksRef = useRef<Blob[]>([]);
 
   const [conversation, setConversation] = useState<ChatConversation>({
     id: "",
@@ -234,7 +237,7 @@ export function useSystemAudio() {
               prefix: "system_",
               extension: "wav",
             });
-            console.log("Saved audio to:", savedPath);
+            console.log("Saved system audio to:", savedPath);
             // Convert to blob
             const binaryString = atob(base64Audio);
             const bytes = new Uint8Array(binaryString.length);
@@ -242,6 +245,114 @@ export function useSystemAudio() {
               bytes[i] = binaryString.charCodeAt(i);
             }
             const audioBlob = new Blob([bytes], { type: "audio/wav" });
+
+            // Save and transcribe mic audio if available
+            let micAudioBlob: Blob | null = null;
+            if (
+              mediaRecorderRef.current &&
+              mediaRecorderRef.current.state === "recording" &&
+              streamRef.current
+            ) {
+              try {
+                const currentRecorder = mediaRecorderRef.current;
+                const currentMimeType =
+                  currentRecorder.mimeType || "audio/webm";
+
+                // Stop current recording to get the mic audio segment
+                // Wait for stop event to ensure all data is available
+                await new Promise<void>((resolve) => {
+                  currentRecorder.onstop = () => {
+                    resolve();
+                  };
+                  currentRecorder.stop();
+                });
+
+                // Get the recorded mic audio
+                if (micAudioChunksRef.current.length > 0) {
+                  micAudioBlob = new Blob(micAudioChunksRef.current, {
+                    type: currentMimeType,
+                  });
+                  micAudioChunksRef.current = []; // Clear chunks
+
+                  // Save mic audio to file
+                  try {
+                    const micAudioBase64 = await blobToBase64(micAudioBlob);
+                    const extension = currentMimeType.includes("webm")
+                      ? "webm"
+                      : currentMimeType.includes("ogg")
+                      ? "ogg"
+                      : "wav";
+                    const micSavedPath = await invoke<string>(
+                      "save_wav_base64_to_file",
+                      {
+                        wavBase64: micAudioBase64,
+                        prefix: "mic_",
+                        extension: extension,
+                      }
+                    );
+                    console.log("Saved mic audio to:", micSavedPath);
+                  } catch (saveError) {
+                    console.error("Failed to save mic audio:", saveError);
+                  }
+                }
+
+                // Restart mic recording for next segment
+                if (streamRef.current && capturing) {
+                  const mimeType = MediaRecorder.isTypeSupported("audio/webm")
+                    ? "audio/webm"
+                    : MediaRecorder.isTypeSupported("audio/ogg")
+                    ? "audio/ogg"
+                    : "audio/wav";
+                  const recorder = new MediaRecorder(streamRef.current, {
+                    mimeType,
+                  });
+                  mediaRecorderRef.current = recorder;
+
+                  recorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) {
+                      micAudioChunksRef.current.push(e.data);
+                    }
+                  };
+
+                  recorder.onstop = () => {
+                    // Handled when we stop
+                  };
+
+                  recorder.start();
+                  console.log("Restarted mic audio recording");
+                }
+              } catch (micError) {
+                console.error("Failed to process mic audio:", micError);
+                // Try to restart recording even if save failed
+                if (streamRef.current && capturing) {
+                  try {
+                    const mimeType = MediaRecorder.isTypeSupported("audio/webm")
+                      ? "audio/webm"
+                      : MediaRecorder.isTypeSupported("audio/ogg")
+                      ? "audio/ogg"
+                      : "audio/wav";
+                    const recorder = new MediaRecorder(streamRef.current, {
+                      mimeType,
+                    });
+                    mediaRecorderRef.current = recorder;
+                    micAudioChunksRef.current = [];
+
+                    recorder.ondataavailable = (e) => {
+                      if (e.data.size > 0) {
+                        micAudioChunksRef.current.push(e.data);
+                      }
+                    };
+
+                    recorder.start();
+                  } catch (restartError) {
+                    console.error(
+                      "Failed to restart mic recording:",
+                      restartError
+                    );
+                  }
+                }
+              }
+            }
 
             const usePluelyAPI = await shouldUsePluelyAPI();
             if (!selectedSttProvider.provider && !usePluelyAPI) {
@@ -260,6 +371,7 @@ export function useSystemAudio() {
 
             setIsProcessing(true);
 
+            // Transcribe system audio
             // Add timeout wrapper for STT request (30 seconds)
             const sttPromise = fetchSTT({
               provider: providerConfig,
@@ -280,17 +392,48 @@ export function useSystemAudio() {
                 timeoutPromise,
               ]);
 
-              // Save transcript to file
+              // Save system audio transcript to file
               try {
                 const savedPath = await invoke<string>("save_text_to_file", {
                   text: transcription,
                   prefix: "transcript_",
                   extension: "txt",
                 });
-                console.log("Saved transcript to:", savedPath);
+                console.log("Saved system audio transcript to:", savedPath);
               } catch (saveError) {
                 console.error("Failed to save transcript:", saveError);
                 // Continue even if save fails
+              }
+
+              // Transcribe mic audio if available
+              if (micAudioBlob) {
+                try {
+                  const micTranscription = await fetchSTT({
+                    provider: providerConfig,
+                    selectedProvider: selectedSttProvider,
+                    audio: micAudioBlob,
+                  });
+
+                  // Save mic audio transcript to file
+                  try {
+                    const micTranscriptPath = await invoke<string>(
+                      "save_text_to_file",
+                      {
+                        text: micTranscription,
+                        prefix: "transcript_mic_",
+                        extension: "txt",
+                      }
+                    );
+                    console.log(
+                      "Saved mic audio transcript to:",
+                      micTranscriptPath
+                    );
+                  } catch (saveError) {
+                    console.error("Failed to save mic transcript:", saveError);
+                  }
+                } catch (micSttError) {
+                  console.error("Failed to transcribe mic audio:", micSttError);
+                }
               }
 
               if (transcription.trim()) {
@@ -704,21 +847,67 @@ export function useSystemAudio() {
     });
   }, [startCapture, stopCapture]);
 
-  // Manage microphone stream for audio visualizer
+  // Manage microphone stream for audio visualizer and recording
   useEffect(() => {
     const getStream = async () => {
       if (capturing) {
         try {
+          const deviceId =
+            selectedAudioDevices.input !== "default" &&
+            selectedAudioDevices.input
+              ? { deviceId: { exact: selectedAudioDevices.input } }
+              : true;
+
           const mediaStream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
+            audio: deviceId,
           });
           streamRef.current = mediaStream;
           setStream(mediaStream);
+
+          // Start recording mic audio
+          try {
+            const mimeType = MediaRecorder.isTypeSupported("audio/webm")
+              ? "audio/webm"
+              : MediaRecorder.isTypeSupported("audio/ogg")
+              ? "audio/ogg"
+              : "audio/wav";
+            const recorder = new MediaRecorder(mediaStream, { mimeType });
+            mediaRecorderRef.current = recorder;
+            micAudioChunksRef.current = [];
+
+            recorder.ondataavailable = (e) => {
+              if (e.data.size > 0) {
+                micAudioChunksRef.current.push(e.data);
+              }
+            };
+
+            recorder.onstop = () => {
+              // This will be handled when we stop to save
+            };
+
+            recorder.start();
+            console.log("Started mic audio recording");
+          } catch (recorderError) {
+            console.error("Failed to start mic recorder:", recorderError);
+          }
         } catch (error) {
           console.error("Failed to get microphone stream:", error);
         }
       } else {
-        // Stop all tracks when not capturing
+        // Stop recording and all tracks when not capturing
+        if (
+          mediaRecorderRef.current &&
+          mediaRecorderRef.current.state !== "inactive"
+        ) {
+          try {
+            mediaRecorderRef.current.stop();
+          } catch (e) {
+            console.error("Error stopping media recorder:", e);
+          }
+          mediaRecorderRef.current = null;
+        }
+        micAudioChunksRef.current = [];
+
         if (streamRef.current) {
           streamRef.current.getTracks().forEach((track) => track.stop());
           streamRef.current = null;
@@ -728,13 +917,26 @@ export function useSystemAudio() {
     };
 
     getStream();
-  }, [capturing]);
+  }, [capturing, selectedAudioDevices.input]);
 
   useEffect(() => {
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
+      // Clean up media recorder on unmount
+      if (
+        mediaRecorderRef.current &&
+        mediaRecorderRef.current.state !== "inactive"
+      ) {
+        try {
+          mediaRecorderRef.current.stop();
+        } catch (e) {
+          console.error("Error stopping media recorder on unmount:", e);
+        }
+        mediaRecorderRef.current = null;
+      }
+      micAudioChunksRef.current = [];
       // Clean up stream on unmount
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
