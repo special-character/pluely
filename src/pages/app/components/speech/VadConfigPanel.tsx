@@ -204,7 +204,7 @@ export const VadConfigPanel = ({
               size="sm"
               onClick={() => {
                 const defaultConfig: VadConfig = {
-                  enabled: true,
+                  enabled: false,
                   hop_size: 1024,
                   sensitivity_rms: 0.012,
                   peak_threshold: 0.035,
