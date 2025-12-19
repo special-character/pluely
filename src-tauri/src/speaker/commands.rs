@@ -31,7 +31,7 @@ pub struct VadConfig {
 impl Default for VadConfig {
     fn default() -> Self {
         Self {
-            enabled: true,
+            enabled: false,
             hop_size: 1024,
             sensitivity_rms: 0.012, // Much less sensitive - only real speech
             peak_threshold: 0.035,  // Higher threshold - filters clicks/noise
@@ -39,7 +39,7 @@ impl Default for VadConfig {
             min_speech_chunks: 7,   // ~0.16s - captures short answers
             pre_speech_chunks: 12,  // ~0.27s - enough to catch word start
             noise_gate_threshold: 0.003, // Stronger noise filtering
-            max_recording_duration_secs: 180, // 3 minutes default
+            max_recording_duration_secs: 3600, // 1 hour default
         }
     }
 }

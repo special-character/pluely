@@ -7,6 +7,8 @@ import { Button } from "@/components";
 import { useApp } from "@/contexts";
 import { floatArrayToWav } from "@/lib/utils";
 import { shouldUsePluelyAPI } from "@/lib/functions/pluely.api";
+import { blobToBase64 } from "@/lib/functions/common.function";
+import { invoke } from "@tauri-apps/api/core";
 
 interface AutoSpeechVADProps {
   submit: UseCompletionReturn["submit"];
@@ -36,6 +38,20 @@ const AutoSpeechVADInternal = ({
       try {
         // convert float32array to blob
         const audioBlob = floatArrayToWav(audio, 16000, "wav");
+
+        // Save mic audio to file
+        try {
+          const audioBase64 = await blobToBase64(audioBlob);
+          const savedPath = await invoke<string>("save_wav_base64_to_file", {
+            wavBase64: audioBase64,
+            prefix: "mic_",
+            extension: "wav",
+          });
+          console.log("Saved mic audio to:", savedPath);
+        } catch (saveError) {
+          console.error("Failed to save mic audio:", saveError);
+          // Continue with transcription even if save fails
+        }
 
         let transcription: string;
         const usePluelyAPI = await shouldUsePluelyAPI();

@@ -81,8 +81,8 @@ export const Warning = () => {
                       Continuous Mode:
                     </span>{" "}
                     Manual recording mode where you control when to start and
-                    stop. Record up to 3 minutes, then click "Stop & Send" for
-                    transcription or "Ignore" to discard.
+                    stop. Record up to 1 hour (configurable), then click "Stop &
+                    Send" for transcription or "Ignore" to discard.
                   </p>
                   <p className="pt-1">
                     <span className="font-medium text-foreground">

@@ -162,13 +162,13 @@ export const VadConfigPanel = ({
                     })
                   }
                   min={1}
-                  max={3}
-                  step={0.5}
+                  max={60}
+                  step={1}
                   className="w-full"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Recording will automatically stop after this duration (max 3
-                  minutes)
+                  Recording will automatically stop after this duration (max 60
+                  minutes / 1 hour)
                 </p>
               </div>
 
@@ -204,7 +204,7 @@ export const VadConfigPanel = ({
               size="sm"
               onClick={() => {
                 const defaultConfig: VadConfig = {
-                  enabled: true,
+                  enabled: false,
                   hop_size: 1024,
                   sensitivity_rms: 0.012,
                   peak_threshold: 0.035,
@@ -212,7 +212,7 @@ export const VadConfigPanel = ({
                   min_speech_chunks: 7,
                   pre_speech_chunks: 12,
                   noise_gate_threshold: 0.003,
-                  max_recording_duration_secs: 180, // 3 minutes
+                  max_recording_duration_secs: 3600, // 1 hour
                 };
                 setLocalConfig(defaultConfig);
                 onUpdate(defaultConfig);

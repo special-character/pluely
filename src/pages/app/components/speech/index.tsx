@@ -60,6 +60,20 @@ export const SystemAudio = (props: useSystemAudioType) => {
     scrollAreaRef,
   } = props;
   const platform = navigator.platform.toLowerCase();
+
+  // Helper function to format duration in a user-friendly way
+  const formatDuration = (seconds: number): string => {
+    if (seconds < 60) {
+      return `${seconds}s`;
+    } else if (seconds < 3600) {
+      const minutes = Math.round(seconds / 60);
+      return `${minutes} minute${minutes !== 1 ? "s" : ""}`;
+    } else {
+      const hours = Math.round(seconds / 3600);
+      return `${hours} hour${hours !== 1 ? "s" : ""}`;
+    }
+  };
+
   const handleToggleCapture = async () => {
     if (capturing) {
       await stopCapture();
@@ -101,10 +115,14 @@ export const SystemAudio = (props: useSystemAudioType) => {
         <Button
           size="icon"
           title={getButtonTitle()}
-          onClick={handleToggleCapture}
-          className={`${capturing ? "bg-green-50 hover:bg-green-100" : ""} ${
-            error ? "bg-red-100 hover:bg-red-200" : ""
-          }`}
+          onPointerDown={() => console.log("[SystemAudio] trigger pointerdown")}
+          onClick={() => {
+            console.log("[SystemAudio] trigger click", { capturing });
+            handleToggleCapture();
+          }}
+          className={`relative z-[60] ${
+            capturing ? "bg-green-50 hover:bg-green-100" : ""
+          } ${error ? "bg-red-100 hover:bg-red-200" : ""}`}
         >
           {getButtonIcon()}
         </Button>
@@ -159,7 +177,9 @@ export const SystemAudio = (props: useSystemAudioType) => {
                           {isProcessing || isAIProcessing
                             ? "Transcribing and generating AI response..."
                             : isRecordingInContinuousMode
-                            ? `Recording up to ${vadConfig.max_recording_duration_secs}s. You can stop anytime.`
+                            ? `Recording up to ${formatDuration(
+                                vadConfig.max_recording_duration_secs
+                              )}. You can stop anytime.`
                             : "Click Start to begin recording, or adjust settings below."}
                         </p>
                       </div>
@@ -173,7 +193,10 @@ export const SystemAudio = (props: useSystemAudioType) => {
                           <div className="flex justify-between text-xs text-muted-foreground">
                             <span>Duration: {recordingProgress}s</span>
                             <span>
-                              Max: {vadConfig.max_recording_duration_secs}s
+                              Max:{" "}
+                              {formatDuration(
+                                vadConfig.max_recording_duration_secs
+                              )}
                             </span>
                           </div>
                           <div className="w-full bg-muted rounded-full h-2">
@@ -255,6 +278,7 @@ export const SystemAudio = (props: useSystemAudioType) => {
                       startCapture();
                     }}
                     onPermissionDenied={() => {
+                      console.log("SETUP INSTRUCTIONS: permission denied");
                       // Permission was denied, keep showing setup instructions
                     }}
                   />

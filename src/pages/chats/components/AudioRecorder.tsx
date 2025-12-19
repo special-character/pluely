@@ -4,6 +4,8 @@ import { AudioVisualizer } from "@/pages/app/components/speech/audio-visualizer"
 import { shouldUsePluelyAPI, fetchSTT } from "@/lib";
 import { useApp } from "@/contexts";
 import { StopCircle, Send } from "lucide-react";
+import { blobToBase64 } from "@/lib/functions/common.function";
+import { invoke } from "@tauri-apps/api/core";
 
 interface AudioRecorderProps {
   onTranscriptionComplete: (text: string) => void;
@@ -107,6 +109,22 @@ export const AudioRecorder = ({
     try {
       const audioBlob = new Blob(chunks, { type: mimeType });
 
+      // Save mic audio to file
+      try {
+        const audioBase64 = await blobToBase64(audioBlob);
+        // Determine file extension from mimeType
+        const extension = mimeType.includes("webm") ? "webm" : "ogg";
+        const savedPath = await invoke<string>("save_wav_base64_to_file", {
+          wavBase64: audioBase64,
+          prefix: "mic_",
+          extension: extension,
+        });
+        console.log("Saved mic audio to:", savedPath);
+      } catch (saveError) {
+        console.error("Failed to save mic audio:", saveError);
+        // Continue with transcription even if save fails
+      }
+
       const usePluelyAPI = await shouldUsePluelyAPI();
       const provider = allSttProviders.find(
         (p) => p.id === selectedSttProvider.provider
@@ -117,6 +135,19 @@ export const AudioRecorder = ({
         selectedProvider: selectedSttProvider,
         audio: audioBlob,
       });
+
+      // Save transcript to file
+      try {
+        const savedPath = await invoke<string>("save_text_to_file", {
+          text: text,
+          prefix: "transcript_",
+          extension: "txt",
+        });
+        console.log("Saved transcript to:", savedPath);
+      } catch (saveError) {
+        console.error("Failed to save transcript:", saveError);
+        // Continue even if save fails
+      }
 
       onTranscriptionComplete(text);
     } catch (error) {
